@@ -662,11 +662,23 @@ def send_follow_up(sample_id: int, follow_up_number: int = Form(...)):
     conn.close()
     return dict(row)
 
-# ─── APPOINTMENTS ───
-    log_activity(conn, sample['customer_id'], 'follow_up', f'Sample follow-up #{stage} sent')
+@app.patch("/api/samples/{sample_id}/status")
+def update_sample_status(sample_id: int, data: dict):
+    conn = get_db()
+    status = data.get('status')
+    if status == 'converted':
+        conn.execute("UPDATE samples SET converted = 1, returned = 0 WHERE id = ?", (sample_id,))
+    elif status == 'declined':
+        conn.execute("UPDATE samples SET returned = 1, converted = 0 WHERE id = ?", (sample_id,))
+    elif status == 'returned':
+        conn.execute("UPDATE samples SET returned = 1, converted = 0 WHERE id = ?", (sample_id,))
     conn.commit()
+    row = conn.execute("""
+        SELECT s.*, c.name as customer_name, c.phone as customer_phone, p.name as product_name, p.image as product_image
+        FROM samples s JOIN customers c ON s.customer_id = c.id JOIN products p ON s.product_id = p.id WHERE s.id = ?
+    """, (sample_id,)).fetchone()
     conn.close()
-    return {"success": True, "message": message}
+    return dict(row)
 
 # ─── APPOINTMENTS ───
 
