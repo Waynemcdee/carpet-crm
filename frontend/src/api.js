@@ -73,6 +73,16 @@ export const API = {
   }),
   deleteFitter: (id) => api(`/api/fitters/${id}`, { method: 'DELETE' }),
 
+  // Visualizer
+  getVisualizations: () => api('/api/visualizations'),
+  createVisualization: (formData) => api('/api/visualizations', { method: 'POST', body: formData }),
+  deleteFitter: (id) => api(`/api/fitters/${id}`, { method: 'DELETE' }),
+
+  // Visualizer
+  getVisualizations: () => api('/api/visualizations'),
+  createVisualization: (formData) => api('/api/visualizations', { method: 'POST', body: formData }),
+  deleteVisualization: (id) => api(`/api/visualizations/${id}`, { method: 'DELETE' }),
+
   // Showroom
   getShowroomItems: (category) => api(`/api/showroom${category ? `?category=${category}` : ''}`),
   createShowroomItem: (formData) => api('/api/showroom', { method: 'POST', body: formData }),

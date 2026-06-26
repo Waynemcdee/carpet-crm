@@ -203,6 +203,17 @@ def init_db():
         FOREIGN KEY (customer_id) REFERENCES customers(id),
         FOREIGN KEY (quote_id) REFERENCES quotes(id)
     );
+    
+    CREATE TABLE IF NOT EXISTS visualizations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id INTEGER,
+        product_id INTEGER,
+        product_name TEXT,
+        image_url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (customer_id) REFERENCES customers(id),
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    );
     ''')
     conn.commit()
     
@@ -1393,6 +1404,56 @@ def create_warranty(data: dict):
     row = conn.execute("SELECT * FROM warranties WHERE id = ?", (w_id,)).fetchone()
     conn.close()
     return dict(row)
+
+# ─── VISUALIZER ───
+
+@app.get("/api/visualizations")
+def get_visualizations():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM visualizations ORDER BY created_at DESC").fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+@app.post("/api/visualizations")
+def create_visualization(
+    image: UploadFile = File(...),
+    product_id: int = Form(...),
+    product_name: str = Form(...),
+    customer_id: Optional[int] = Form(None)
+):
+    conn = get_db()
+    ext = image.filename.split(".")[-1]
+    filename = f"viz_{uuid.uuid4()}.{ext}"
+    filepath = f"uploads/visualizations/{filename}"
+    os.makedirs("uploads/visualizations", exist_ok=True)
+    with open(filepath, "wb") as f:
+        f.write(image.file.read())
+    
+    cursor = conn.execute('''
+        INSERT INTO visualizations (customer_id, product_id, product_name, image_url)
+        VALUES (?, ?, ?, ?)
+    ''', (customer_id, product_id, product_name, f"/uploads/visualizations/{filename}"))
+    viz_id = cursor.lastrowid
+    conn.commit()
+    row = conn.execute("SELECT * FROM visualizations WHERE id = ?", (viz_id,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.delete("/api/visualizations/{viz_id}")
+def delete_visualization(viz_id: int):
+    conn = get_db()
+    viz = conn.execute("SELECT * FROM visualizations WHERE id = ?", (viz_id,)).fetchone()
+    if not viz:
+        conn.close()
+        raise HTTPException(404, "Visualization not found")
+    # Delete file
+    img_path = viz['image_url'].lstrip('/')
+    if os.path.exists(img_path):
+        os.remove(img_path)
+    conn.execute("DELETE FROM visualizations WHERE id = ?", (viz_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True}
 
 # Mount static assets FIRST (before catch-all)
 app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
