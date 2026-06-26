@@ -51,12 +51,33 @@ export const API = {
   createAppointment: (data) => api('/api/appointments', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
   }),
+  getAppointment: (id) => api(`/api/appointments/${id}`),
+  updateAppointment: (id, data) => api(`/api/appointments/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  }),
+  deleteAppointment: (id) => api(`/api/appointments/${id}`, { method: 'DELETE' }),
   getCalendar: (start, end) => api(`/api/calendar?start=${start}&end=${end}`),
   completeAppointment: (id, file) => {
     const form = new FormData();
     if (file) form.append('install_photo', file);
     return api(`/api/appointments/${id}/complete`, { method: 'POST', body: form });
   },
+
+  // Fitters
+  getFitters: () => api('/api/fitters'),
+  createFitter: (data) => api('/api/fitters', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  }),
+  updateFitter: (id, data) => api(`/api/fitters/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  }),
+  deleteFitter: (id) => api(`/api/fitters/${id}`, { method: 'DELETE' }),
+
+  // Showroom
+  getShowroomItems: (category) => api(`/api/showroom${category ? `?category=${category}` : ''}`),
+  createShowroomItem: (formData) => api('/api/showroom', { method: 'POST', body: formData }),
+  updateShowroomItem: (id, formData) => api(`/api/showroom/${id}`, { method: 'PUT', body: formData }),
+  deleteShowroomItem: (id) => api(`/api/showroom/${id}`, { method: 'DELETE' }),
 
   // Reviews
   getPendingReviews: () => api('/api/reviews/pending'),

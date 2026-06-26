@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Camera, FileText, Calendar, Package, Star, Zap, BarChart3, ClipboardList, Truck } from 'lucide-react';
+import { LayoutDashboard, Users, Camera, FileText, Calendar, Package, Star, Zap, BarChart3, ClipboardList, Truck, Wrench, Store } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/CustomerDetail';
@@ -12,14 +12,18 @@ import ReactivationPage from './pages/ReactivationPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
 import ChecklistPage from './pages/ChecklistPage';
+import FittersPage from './pages/FittersPage';
+import ShowroomPage from './pages/ShowroomPage';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: Users, label: 'Customers', path: '/customers' },
   { icon: FileText, label: 'Quotes', path: '/quotes' },
   { icon: Calendar, label: 'Calendar', path: '/calendar' },
+  { icon: Store, label: 'Showroom', path: '/showroom' },
   { icon: Package, label: 'Samples', path: '/samples' },
   { icon: Truck, label: 'Orders', path: '/purchase-orders' },
+  { icon: Wrench, label: 'Fitters', path: '/fitters' },
   { icon: ClipboardList, label: 'Checklists', path: '/checklists' },
   { icon: Star, label: 'Reviews', path: '/reviews' },
   { icon: Zap, label: 'Reactivate', path: '/reactivation' },
@@ -86,8 +90,10 @@ function Layout() {
           <Route path="/visualiser" element={<Visualiser />} />
           <Route path="/quotes" element={<Quotes />} />
           <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/showroom" element={<ShowroomPage />} />
           <Route path="/samples" element={<SamplesPage />} />
           <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+          <Route path="/fitters" element={<FittersPage />} />
           <Route path="/checklists" element={<ChecklistPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/reactivation" element={<ReactivationPage />} />

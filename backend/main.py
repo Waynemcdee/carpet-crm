@@ -668,6 +668,331 @@ def complete_appointment(appointment_id: int, install_photo: Optional[UploadFile
     conn.close()
     return {"success": True, "photo_path": photo_path}
 
+# ─── APPOINTMENT MANAGEMENT ───
+
+@app.put("/api/appointments/{appointment_id}")
+def update_appointment(appointment_id: int, appt: AppointmentCreate):
+    conn = get_db()
+    existing = conn.execute("SELECT * FROM appointments WHERE id = ?", (appointment_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(404, "Appointment not found")
+    
+    conn.execute('''
+        UPDATE appointments 
+        SET customer_id = ?, quote_id = ?, type = ?, fitter_name = ?, fitter_phone = ?, 
+            scheduled_date = ?, duration_minutes = ?, notes = ?
+        WHERE id = ?
+    ''', (appt.customer_id, appt.quote_id, appt.type, appt.fitter_name, appt.fitter_phone,
+          appt.scheduled_date, appt.duration_minutes, appt.notes, appointment_id))
+    
+    log_activity(conn, appt.customer_id, 'appointment_updated', f'Appointment updated to {appt.scheduled_date}')
+    conn.commit()
+    row = conn.execute("SELECT * FROM appointments WHERE id = ?", (appointment_id,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.delete("/api/appointments/{appointment_id}")
+def delete_appointment(appointment_id: int):
+    conn = get_db()
+    appt = conn.execute("SELECT * FROM appointments WHERE id = ?", (appointment_id,)).fetchone()
+    if not appt:
+        conn.close()
+        raise HTTPException(404, "Appointment not found")
+    
+    conn.execute("DELETE FROM appointments WHERE id = ?", (appointment_id,))
+    log_activity(conn, appt['customer_id'], 'appointment_deleted', 'Appointment cancelled')
+    conn.commit()
+    conn.close()
+    return {"success": True}
+
+@app.get("/api/appointments/{appointment_id}")
+def get_appointment(appointment_id: int):
+    conn = get_db()
+    row = conn.execute('''
+        SELECT a.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address
+        FROM appointments a
+        JOIN customers c ON a.customer_id = c.id
+        WHERE a.id = ?
+    ''', (appointment_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(404, "Appointment not found")
+    return dict(row)
+
+# ─── FITTER MANAGEMENT ───
+
+class FitterCreate(BaseModel):
+    name: str
+    phone: str = ""
+    email: str = ""
+    notes: str = ""
+    active: int = 1
+
+@app.get("/api/fitters")
+def get_fitters():
+    conn = get_db()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS fitters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT,
+            email TEXT,
+            notes TEXT,
+            active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    rows = conn.execute("SELECT * FROM fitters WHERE active = 1 ORDER BY name").fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+@app.post("/api/fitters")
+def create_fitter(fitter: FitterCreate):
+    conn = get_db()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS fitters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT,
+            email TEXT,
+            notes TEXT,
+            active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor = conn.execute('''
+        INSERT INTO fitters (name, phone, email, notes, active)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (fitter.name, fitter.phone, fitter.email, fitter.notes, fitter.active))
+    conn.commit()
+    row = conn.execute("SELECT * FROM fitters WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.put("/api/fitters/{fitter_id}")
+def update_fitter(fitter_id: int, fitter: FitterCreate):
+    conn = get_db()
+    existing = conn.execute("SELECT * FROM fitters WHERE id = ?", (fitter_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(404, "Fitter not found")
+    
+    conn.execute('''
+        UPDATE fitters SET name = ?, phone = ?, email = ?, notes = ?, active = ?
+        WHERE id = ?
+    ''', (fitter.name, fitter.phone, fitter.email, fitter.notes, fitter.active, fitter_id))
+    conn.commit()
+    row = conn.execute("SELECT * FROM fitters WHERE id = ?", (fitter_id,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.delete("/api/fitters/{fitter_id}")
+def delete_fitter(fitter_id: int):
+    conn = get_db()
+    fitter = conn.execute("SELECT * FROM fitters WHERE id = ?", (fitter_id,)).fetchone()
+    if not fitter:
+        conn.close()
+        raise HTTPException(404, "Fitter not found")
+    
+    conn.execute("UPDATE fitters SET active = 0 WHERE id = ?", (fitter_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True}
+
+# ─── SHOWROOM SAMPLES & CARPETS ───
+
+class ShowroomItemCreate(BaseModel):
+    name: str
+    category: str = "carpet"
+    supplier: str = ""
+    price_retail: float = 0
+    price_trade: float = 0
+    width_m: float = 4.0
+    roll_length_m: float = 30.0
+    pile_weight: str = ""
+    backing: str = ""
+    colour: str = ""
+    pattern: str = ""
+    durability_rating: str = ""
+    stain_resistant: int = 0
+    bleach_cleanable: int = 0
+    suitable_for: str = ""
+    notes: str = ""
+    active: int = 1
+
+@app.get("/api/showroom")
+def get_showroom_items(category: str = None):
+    conn = get_db()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS showroom_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            category TEXT DEFAULT 'carpet',
+            supplier TEXT,
+            price_retail REAL DEFAULT 0,
+            price_trade REAL DEFAULT 0,
+            width_m REAL DEFAULT 4.0,
+            roll_length_m REAL DEFAULT 30.0,
+            pile_weight TEXT,
+            backing TEXT,
+            colour TEXT,
+            pattern TEXT,
+            durability_rating TEXT,
+            stain_resistant INTEGER DEFAULT 0,
+            bleach_cleanable INTEGER DEFAULT 0,
+            suitable_for TEXT,
+            image TEXT,
+            notes TEXT,
+            active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    
+    if category:
+        rows = conn.execute("SELECT * FROM showroom_items WHERE active = 1 AND category = ? ORDER BY name", (category,)).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM showroom_items WHERE active = 1 ORDER BY category, name").fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+@app.post("/api/showroom")
+def create_showroom_item(
+    name: str = Form(...),
+    category: str = Form("carpet"),
+    supplier: str = Form(""),
+    price_retail: float = Form(0),
+    price_trade: float = Form(0),
+    width_m: float = Form(4.0),
+    roll_length_m: float = Form(30.0),
+    pile_weight: str = Form(""),
+    backing: str = Form(""),
+    colour: str = Form(""),
+    pattern: str = Form(""),
+    durability_rating: str = Form(""),
+    stain_resistant: int = Form(0),
+    bleach_cleanable: int = Form(0),
+    suitable_for: str = Form(""),
+    notes: str = Form(""),
+    image: Optional[UploadFile] = None
+):
+    conn = get_db()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS showroom_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            category TEXT DEFAULT 'carpet',
+            supplier TEXT,
+            price_retail REAL DEFAULT 0,
+            price_trade REAL DEFAULT 0,
+            width_m REAL DEFAULT 4.0,
+            roll_length_m REAL DEFAULT 30.0,
+            pile_weight TEXT,
+            backing TEXT,
+            colour TEXT,
+            pattern TEXT,
+            durability_rating TEXT,
+            stain_resistant INTEGER DEFAULT 0,
+            bleach_cleanable INTEGER DEFAULT 0,
+            suitable_for TEXT,
+            image TEXT,
+            notes TEXT,
+            active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    image_path = None
+    if image:
+        ext = image.filename.split(".")[-1]
+        filename = f"showroom_{uuid.uuid4()}.{ext}"
+        filepath = f"uploads/{filename}"
+        with open(filepath, "wb") as f:
+            f.write(image.file.read())
+        image_path = f"/uploads/{filename}"
+    
+    cursor = conn.execute('''
+        INSERT INTO showroom_items 
+        (name, category, supplier, price_retail, price_trade, width_m, roll_length_m, 
+         pile_weight, backing, colour, pattern, durability_rating, stain_resistant, 
+         bleach_cleanable, suitable_for, image, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (name, category, supplier, price_retail, price_trade, width_m, roll_length_m,
+          pile_weight, backing, colour, pattern, durability_rating, stain_resistant,
+          bleach_cleanable, suitable_for, image_path, notes))
+    
+    conn.commit()
+    row = conn.execute("SELECT * FROM showroom_items WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.put("/api/showroom/{item_id}")
+def update_showroom_item(
+    item_id: int,
+    name: str = Form(...),
+    category: str = Form("carpet"),
+    supplier: str = Form(""),
+    price_retail: float = Form(0),
+    price_trade: float = Form(0),
+    width_m: float = Form(4.0),
+    roll_length_m: float = Form(30.0),
+    pile_weight: str = Form(""),
+    backing: str = Form(""),
+    colour: str = Form(""),
+    pattern: str = Form(""),
+    durability_rating: str = Form(""),
+    stain_resistant: int = Form(0),
+    bleach_cleanable: int = Form(0),
+    suitable_for: str = Form(""),
+    notes: str = Form(""),
+    image: Optional[UploadFile] = None
+):
+    conn = get_db()
+    existing = conn.execute("SELECT * FROM showroom_items WHERE id = ?", (item_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(404, "Item not found")
+    
+    image_path = existing['image']
+    if image:
+        ext = image.filename.split(".")[-1]
+        filename = f"showroom_{uuid.uuid4()}.{ext}"
+        filepath = f"uploads/{filename}"
+        with open(filepath, "wb") as f:
+            f.write(image.file.read())
+        image_path = f"/uploads/{filename}"
+    
+    conn.execute('''
+        UPDATE showroom_items SET
+            name = ?, category = ?, supplier = ?, price_retail = ?, price_trade = ?,
+            width_m = ?, roll_length_m = ?, pile_weight = ?, backing = ?, colour = ?,
+            pattern = ?, durability_rating = ?, stain_resistant = ?, bleach_cleanable = ?,
+            suitable_for = ?, image = ?, notes = ?
+        WHERE id = ?
+    ''', (name, category, supplier, price_retail, price_trade, width_m, roll_length_m,
+          pile_weight, backing, colour, pattern, durability_rating, stain_resistant,
+          bleach_cleanable, suitable_for, image_path, notes, item_id))
+    
+    conn.commit()
+    row = conn.execute("SELECT * FROM showroom_items WHERE id = ?", (item_id,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.delete("/api/showroom/{item_id}")
+def delete_showroom_item(item_id: int):
+    conn = get_db()
+    item = conn.execute("SELECT * FROM showroom_items WHERE id = ?", (item_id,)).fetchone()
+    if not item:
+        conn.close()
+        raise HTTPException(404, "Item not found")
+    
+    conn.execute("UPDATE showroom_items SET active = 0 WHERE id = ?", (item_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True}
+
 # ─── REVIEWS ───
 
 @app.get("/api/reviews/pending")
@@ -1064,7 +1389,20 @@ def create_warranty(data: dict):
     return dict(row)
 
 # Serve frontend static files
-app.mount("/", StaticFiles(directory="dist", html=True), name="static")
+from fastapi.responses import FileResponse
+
+@app.get("/{path:path}")
+def serve_spa(path: str):
+    # API routes are handled by their own decorators above
+    # This catch-all serves the React app for all other routes
+    index_path = os.path.join(os.path.dirname(__file__), "dist", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"detail": "Not Found"}
+
+# Mount static assets
+app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 if __name__ == "__main__":
     import uvicorn
