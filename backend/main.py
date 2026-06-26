@@ -320,8 +320,11 @@ def get_dashboard():
     conn = get_db()
     total_customers = conn.execute("SELECT COUNT(*) as c FROM customers").fetchone()["c"]
     total_quotes = conn.execute("SELECT COUNT(*) as c FROM quotes").fetchone()["c"]
-    total_value = conn.execute("SELECT COALESCE(SUM(total), 0) as c FROM quotes WHERE status IN ('accepted', 'paid')").fetchone()["c"]
-    month_value = conn.execute("SELECT COALESCE(SUM(total), 0) as c FROM quotes WHERE status IN ('accepted', 'paid') AND date(created_at) >= date('now', 'start of month')").fetchone()["c"]
+    total_value = conn.execute("SELECT COALESCE(SUM(total), 0) as c FROM orders WHERE status IN ('confirmed','production','ready','fitted','invoiced','paid')").fetchone()["c"]
+    month_value = conn.execute("SELECT COALESCE(SUM(total), 0) as c FROM orders WHERE status IN ('confirmed','production','ready','fitted','invoiced','paid') AND date(created_at) >= date('now', 'start of month')").fetchone()["c"]
+    open_quotes = conn.execute("SELECT COUNT(*) as c FROM quotes WHERE status IN ('draft','accepted')").fetchone()["c"]
+    open_quotes_value = conn.execute("SELECT COALESCE(SUM(total), 0) as c FROM quotes WHERE status IN ('draft','accepted')").fetchone()["c"]
+    jobs_in_progress = conn.execute("SELECT COUNT(*) as c FROM orders WHERE status IN ('confirmed','production','ready','fitted')").fetchone()["c"]
     samples_out = conn.execute("SELECT COUNT(*) as c FROM samples WHERE returned = 0").fetchone()["c"]
     samples_needing_followup = conn.execute('''
         SELECT COUNT(*) as c FROM samples 
@@ -331,6 +334,12 @@ def get_dashboard():
     upcoming_apps = conn.execute("SELECT COUNT(*) as c FROM appointments WHERE date(scheduled_date) >= date('now') AND status = 'scheduled'").fetchone()["c"]
     pending_reviews = conn.execute("SELECT COUNT(*) as c FROM reviews WHERE completed_at IS NULL").fetchone()["c"]
     
+    # Conversion rate
+    total_leads = conn.execute("SELECT COUNT(*) as c FROM customers").fetchone()["c"]
+    converted = conn.execute("SELECT COUNT(*) as c FROM customers c JOIN orders o ON c.id = o.customer_id").fetchone()["c"]
+    conversion_rate = round((converted / total_leads * 100), 1) if total_leads > 0 else 0
+    
+    # Hot leads — customers with activity in last 30 days
     hot_leads = conn.execute('''
         SELECT c.*, MAX(a.created_at) as last_activity,
                (SELECT COUNT(*) FROM samples s WHERE s.customer_id = c.id AND s.converted = 0) as sample_count,
@@ -339,21 +348,24 @@ def get_dashboard():
         LEFT JOIN activities a ON a.customer_id = c.id
         WHERE c.status IN ('lead', 'hot')
         GROUP BY c.id
-        ORDER BY last_activity DESC
-        LIMIT 5
+        ORDER BY COALESCE(last_activity, c.created_at) DESC
+        LIMIT 8
     ''').fetchall()
     
     conn.close()
     return {
         "stats": {
             "customers": total_customers,
-            "quotes": total_quotes,
+            "quotes": open_quotes,
+            "open_quotes_value": round(open_quotes_value, 2),
             "sales_value": round(total_value, 2),
             "month_value": round(month_value, 2),
+            "jobs_in_progress": jobs_in_progress,
             "samples_out": samples_out,
             "samples_needing_followup": samples_needing_followup,
             "upcoming_appointments": upcoming_apps,
-            "pending_reviews": pending_reviews
+            "pending_reviews": pending_reviews,
+            "conversion_rate": conversion_rate
         },
         "hot_leads": [dict(row) for row in hot_leads]
     }

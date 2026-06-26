@@ -45,37 +45,34 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="card glass p-5">
-          <p className="text-white/40 text-sm mb-2">Today's Sales</p>
-          <p className="text-3xl font-bold text-emerald-400">£{stats.sales_value?.toLocaleString() || 0}</p>
-          <div className="flex items-center gap-1 mt-2">
-            <span className="text-xs text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">+18%</span>
-            <span className="text-xs text-white/30">vs yesterday</span>
+          <p className="text-white/40 text-sm mb-2">This Month</p>
+          <p className="text-3xl font-bold text-emerald-400">£{stats.month_value?.toLocaleString() || 0}</p>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${Math.min((stats.month_value || 0) / 30000 * 100, 100)}%` }} />
+            </div>
+            <span className="text-[10px] text-white/30">Target: £30k</span>
           </div>
         </div>
 
         <div className="card glass p-5">
           <p className="text-white/40 text-sm mb-2">Open Quotes</p>
           <p className="text-3xl font-bold text-amber-400">{stats.quotes || 0}</p>
-          <p className="text-xs text-white/30 mt-2">£8,450 potential value</p>
+          <p className="text-xs text-white/30 mt-2">£{stats.open_quotes_value?.toLocaleString() || 0} potential</p>
         </div>
 
         <div className="card glass p-5">
-          <p className="text-white/40 text-sm mb-2">Samples Out</p>
-          <p className="text-3xl font-bold text-blue-400">{stats.samples_out || 0}</p>
-          <p className="text-xs text-white/30 mt-2">{stats.samples_needing_followup || 0} need follow-up today</p>
+          <p className="text-white/40 text-sm mb-2">Jobs In Progress</p>
+          <p className="text-3xl font-bold text-blue-400">{stats.jobs_in_progress || 0}</p>
+          <p className="text-xs text-white/30 mt-2">{stats.upcoming_appointments || 0} appointments</p>
         </div>
 
         <div className="card glass p-5">
-          <p className="text-white/40 text-sm mb-2">This Month</p>
-          <p className="text-3xl font-bold text-white">£{stats.month_value?.toLocaleString() || 0}</p>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min((stats.month_value || 0) / 30000 * 100, 100)}%` }} />
-            </div>
-            <span className="text-[10px] text-white/30">Target: £30k</span>
-          </div>
+          <p className="text-white/40 text-sm mb-2">Conversion Rate</p>
+          <p className="text-3xl font-bold text-violet-400">{stats.conversion_rate || 0}%</p>
+          <p className="text-xs text-white/30 mt-2">{stats.customers || 0} total leads</p>
         </div>
       </div>
 
