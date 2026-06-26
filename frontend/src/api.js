@@ -73,10 +73,19 @@ export const API = {
   }),
   deleteFitter: (id) => api(`/api/fitters/${id}`, { method: 'DELETE' }),
 
-  // Visualizer
-  getVisualizations: () => api('/api/visualizations'),
-  createVisualization: (formData) => api('/api/visualizations', { method: 'POST', body: formData }),
-  deleteFitter: (id) => api(`/api/fitters/${id}`, { method: 'DELETE' }),
+  // Orders
+  getOrders: () => api('/api/orders'),
+  getOrder: (id) => api(`/api/orders/${id}`),
+  createOrder: (data) => api('/api/orders', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  }),
+  updateOrderStatus: (id, status) => api(`/api/orders/${id}/status`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status })
+  }),
+  updateOrderBalance: (id, deposit, balance) => api(`/api/orders/${id}/balance`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deposit_paid: deposit, balance_due: balance })
+  }),
+  deleteOrder: (id) => api(`/api/orders/${id}`, { method: 'DELETE' }),
 
   // Visualizer
   getVisualizations: () => api('/api/visualizations'),

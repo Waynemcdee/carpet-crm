@@ -11,6 +11,7 @@ import ReviewsPage from './pages/ReviewsPage';
 import ReactivationPage from './pages/ReactivationPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
+import OrdersPage from './pages/OrdersPage';
 import ChecklistPage from './pages/ChecklistPage';
 import FittersPage from './pages/FittersPage';
 import ShowroomPage from './pages/ShowroomPage';
@@ -22,7 +23,7 @@ const navItems = [
   { icon: Calendar, label: 'Calendar', path: '/calendar' },
   { icon: Store, label: 'Showroom', path: '/showroom' },
   { icon: Package, label: 'Samples', path: '/samples' },
-  { icon: Truck, label: 'Orders', path: '/purchase-orders' },
+  { icon: Truck, label: 'Orders', path: '/orders' },
   { icon: Wrench, label: 'Fitters', path: '/fitters' },
   { icon: ClipboardList, label: 'Checklists', path: '/checklists' },
   { icon: Star, label: 'Reviews', path: '/reviews' },
@@ -92,7 +93,7 @@ function Layout() {
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/showroom" element={<ShowroomPage />} />
           <Route path="/samples" element={<SamplesPage />} />
-          <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+          <Route path="/orders" element={<OrdersPage />} />
           <Route path="/fitters" element={<FittersPage />} />
           <Route path="/checklists" element={<ChecklistPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />

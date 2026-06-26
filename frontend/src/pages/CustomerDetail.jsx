@@ -30,9 +30,9 @@ export default function CustomerDetail() {
     if (data?.samples?.length > 0) {
       const lastSample = data.samples[data.samples.length - 1];
       if (lastSample.product_id) {
-        fetch(`http://localhost:5004/api/products/${lastSample.product_id}/recommendations`)
+        fetch(`/api/products/${lastSample.product_id}/recommendations`)
           .then(r => r.json())
-          .then(setRecommendations);
+          .then(data => setRecommendations(data));
       }
     }
   }, [data]);

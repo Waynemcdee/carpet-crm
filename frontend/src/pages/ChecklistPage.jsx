@@ -31,7 +31,7 @@ export default function ChecklistPage() {
     try {
       const [cRes, clRes] = await Promise.all([
         API.getCustomers(),
-        fetch('http://localhost:5004/api/checklists').then(r=>r.json())
+        fetch('/api/checklists').then(r=>r.json())
       ]);
       setCustomers(cRes);
       setChecklists(clRes);
@@ -41,7 +41,7 @@ export default function ChecklistPage() {
 
   async function createChecklist(e) {
     e.preventDefault();
-    await fetch('http://localhost:5004/api/checklists', {
+    await fetch('/api/checklists', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -57,7 +57,7 @@ export default function ChecklistPage() {
 
   async function toggleItem(checklistId, completedCount, totalCount, direction) {
     const newCount = direction === 'inc' ? completedCount + 1 : Math.max(0, completedCount - 1);
-    await fetch(`http://localhost:5004/api/checklists/${checklistId}`, {
+    await fetch(`/api/checklists/${checklistId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ completed_count: newCount, total_count: totalCount })

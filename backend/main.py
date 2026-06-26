@@ -188,6 +188,25 @@ def init_db():
         FOREIGN KEY (customer_id) REFERENCES customers(id)
     );
     
+    CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id INTEGER,
+        quote_id INTEGER,
+        room_name TEXT,
+        product_name TEXT,
+        total REAL,
+        deposit_paid REAL DEFAULT 0,
+        balance_due REAL,
+        status TEXT DEFAULT 'confirmed',
+        fitter_name TEXT,
+        scheduled_date TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (customer_id) REFERENCES customers(id),
+        FOREIGN KEY (quote_id) REFERENCES quotes(id)
+    );
+    
     CREATE TABLE IF NOT EXISTS warranties (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         customer_id INTEGER,
@@ -1327,6 +1346,90 @@ def update_po_status(po_id: int, data: dict):
     conn.commit()
     row = conn.execute("SELECT * FROM purchase_orders WHERE id = ?", (po_id,)).fetchone()
     conn.close()
+    return dict(row)
+
+# ─── CUSTOMER ORDERS ───
+
+@app.get("/api/orders")
+def get_orders():
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address
+        FROM orders o
+        JOIN customers c ON o.customer_id = c.id
+        ORDER BY o.created_at DESC
+    """).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.post("/api/orders")
+def create_order(data: dict):
+    conn = get_db()
+    cursor = conn.execute('''
+        INSERT INTO orders (customer_id, quote_id, room_name, product_name, total, deposit_paid, balance_due, status, fitter_name, scheduled_date, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        data.get('customer_id'), data.get('quote_id'), data.get('room_name'),
+        data.get('product_name'), data.get('total'), data.get('deposit_paid', 0),
+        data.get('balance_due'), data.get('status', 'confirmed'),
+        data.get('fitter_name'), data.get('scheduled_date'), data.get('notes')
+    ))
+    order_id = cursor.lastrowid
+    conn.commit()
+    conn.execute("UPDATE quotes SET status = 'converted' WHERE id = ?", (data.get('quote_id'),))
+    conn.commit()
+    log_activity(conn, data.get('customer_id'), 'order_created', f"Order #{order_id} created for {data.get('room_name')}")
+    conn.commit()
+    row = conn.execute("SELECT o.*, c.name as customer_name FROM orders o JOIN customers c ON o.customer_id = c.id WHERE o.id = ?", (order_id,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.patch("/api/orders/{order_id}/status")
+def update_order_status(order_id: int, data: dict):
+    conn = get_db()
+    new_status = data.get('status')
+    now = datetime.now().isoformat()
+    conn.execute("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?", (new_status, now, order_id))
+    conn.commit()
+    order = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
+    log_activity(conn, order['customer_id'], 'status_change', f"Order status changed to {new_status}")
+    conn.commit()
+    row = conn.execute("SELECT o.*, c.name as customer_name FROM orders o JOIN customers c ON o.customer_id = c.id WHERE o.id = ?", (order_id,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.patch("/api/orders/{order_id}/balance")
+def update_order_balance(order_id: int, data: dict):
+    conn = get_db()
+    deposit = data.get('deposit_paid')
+    balance = data.get('balance_due')
+    conn.execute("UPDATE orders SET deposit_paid = ?, balance_due = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                   (deposit, balance, order_id))
+    conn.commit()
+    row = conn.execute("SELECT o.*, c.name as customer_name FROM orders o JOIN customers c ON o.customer_id = c.id WHERE o.id = ?", (order_id,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.delete("/api/orders/{order_id}")
+def delete_order(order_id: int):
+    conn = get_db()
+    conn.execute("DELETE FROM orders WHERE id = ?", (order_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True}
+
+@app.get("/api/orders/{order_id}")
+def get_order(order_id: int):
+    conn = get_db()
+    row = conn.execute("""
+        SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address, c.email
+        FROM orders o
+        JOIN customers c ON o.customer_id = c.id
+        WHERE o.id = ?
+    """, (order_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(404, "Order not found")
     return dict(row)
 
 # ─── JOB CHECKLISTS ───

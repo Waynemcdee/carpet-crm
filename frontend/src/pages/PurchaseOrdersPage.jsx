@@ -14,14 +14,14 @@ export default function PurchaseOrdersPage() {
   useEffect(() => { loadOrders(); }, []);
 
   async function loadOrders() {
-    try { const res = await fetch('http://localhost:5004/api/purchase-orders').then(r=>r.json()); setOrders(res); }
+    try { const res = await fetch('/api/purchase-orders').then(r=>r.json()); setOrders(res); }
     catch (e) { console.error(e); }
     finally { setLoading(false); }
   }
 
   async function createOrder(e) {
     e.preventDefault();
-    await fetch('http://localhost:5004/api/purchase-orders', {
+    await fetch('/api/purchase-orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form)
@@ -32,7 +32,7 @@ export default function PurchaseOrdersPage() {
   }
 
   async function updateStatus(poId, status) {
-    await fetch(`http://localhost:5004/api/purchase-orders/${poId}/status`, {
+    await fetch(`/api/purchase-orders/${poId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status })
