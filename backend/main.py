@@ -1063,6 +1063,10 @@ def create_warranty(data: dict):
     conn.close()
     return dict(row)
 
+# Serve frontend static files
+app.mount("/", StaticFiles(directory="dist", html=True), name="static")
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5004)
+    port = int(os.environ.get("PORT", 5004))
+    uvicorn.run(app, host="0.0.0.0", port=port)
