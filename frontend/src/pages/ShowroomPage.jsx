@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, X, Upload, Filter, Search, Tag, Ruler, Palette, Shield, Droplets } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Upload, Filter, Search, Tag, Ruler, Palette, Shield, Droplets, Package } from 'lucide-react';
 import { API } from '../api';
 
 export default function ShowroomPage() {
