@@ -279,6 +279,15 @@ class CustomerCreate(BaseModel):
     notes: str = ""
     source: str = "walk-in"
 
+class CustomerUpdate(BaseModel):
+    name: str = ""
+    phone: str = ""
+    email: str = ""
+    address: str = ""
+    notes: str = ""
+    source: str = ""
+    status: str = ""
+
 class QuoteCreate(BaseModel):
     customer_id: int
     room_name: str = "Living Room"
@@ -393,6 +402,9 @@ def get_customer(customer_id: int):
     appointments = conn.execute("SELECT * FROM appointments WHERE customer_id = ? ORDER BY scheduled_date DESC", (customer_id,)).fetchall()
     messages = conn.execute("SELECT * FROM messages WHERE customer_id = ? ORDER BY sent_at DESC", (customer_id,)).fetchall()
     reviews = conn.execute("SELECT * FROM reviews WHERE customer_id = ? ORDER BY requested_at DESC", (customer_id,)).fetchall()
+    orders = conn.execute("""
+        SELECT o.* FROM orders o WHERE o.customer_id = ? ORDER BY o.created_at DESC
+    """, (customer_id,)).fetchall()
     conn.close()
     return {
         "customer": dict(customer),
@@ -401,8 +413,31 @@ def get_customer(customer_id: int):
         "activities": [dict(row) for row in activities],
         "appointments": [dict(row) for row in appointments],
         "messages": [dict(row) for row in messages],
-        "reviews": [dict(row) for row in reviews]
+        "reviews": [dict(row) for row in reviews],
+        "orders": [dict(row) for row in orders]
     }
+
+@app.put("/api/customers/{customer_id}")
+def update_customer(customer_id: int, data: dict):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM customers WHERE id = ?", (customer_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Customer not found")
+    updates = []
+    vals = []
+    for col in ['name', 'phone', 'email', 'address', 'notes', 'source', 'status']:
+        if col in data and data[col]:
+            updates.append(f"{col} = ?")
+            vals.append(data[col])
+    if updates:
+        vals.append(customer_id)
+        conn.execute(f"UPDATE customers SET {', '.join(updates)}, last_contact = CURRENT_TIMESTAMP WHERE id = ?", vals)
+        conn.commit()
+        log_activity(conn, customer_id, 'updated', 'Customer details updated')
+        conn.commit()
+    conn.close()
+    return {"success": True}
 
 @app.get("/api/products")
 def get_products():

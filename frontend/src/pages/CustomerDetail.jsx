@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Phone, MessageCircle, Package, CalendarPlus, Plus, ChevronLeft, Share2, ExternalLink } from 'lucide-react';
+import { Phone, MessageCircle, Package, CalendarPlus, Plus, ChevronLeft, Share2, ExternalLink, Edit3, Save, X, Truck } from 'lucide-react';
 import { API, getInitials, formatPhoneForWhatsApp, formatDate } from '../api';
 
 export default function CustomerDetail() {
@@ -11,6 +11,8 @@ export default function CustomerDetail() {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showQuoteForm, setShowQuoteForm] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', address: '', notes: '', source: '', status: '' });
 
   // Quote form state
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -129,6 +131,17 @@ export default function CustomerDetail() {
     }
   }
 
+  async function saveEdit(e) {
+    e.preventDefault();
+    await fetch(`/api/customers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editForm)
+    });
+    setEditing(false);
+    loadData();
+  }
+
   if (loading) {
     return (
       <div className="px-5 pt-6 pb-4">
@@ -142,6 +155,7 @@ export default function CustomerDetail() {
   const quotes = data?.quotes || [];
   const samples = data?.samples || [];
   const appointments = data?.appointments || [];
+  const orders = data?.orders || [];
 
   return (
     <div className="px-5 pt-6 pb-4">
@@ -151,13 +165,27 @@ export default function CustomerDetail() {
 
       {/* Header */}
       <div className="card glass p-5 mb-4">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-bold text-black text-lg">
-            {getInitials(customer.name)}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-bold text-black text-lg">
+              {getInitials(customer.name)}
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">{customer.name}</h1>
+              <p className="text-sm text-white/40">{customer.phone}</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold">{customer.name}</h1>
-            <p className="text-sm text-white/40">{customer.phone}</p>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-medium px-3 py-1 rounded-full ${
+              customer.status === 'lead' ? 'bg-amber-400/10 text-amber-400' :
+              customer.status === 'quoted' ? 'bg-blue-400/10 text-blue-400' :
+              customer.status === 'ordered' ? 'bg-violet-400/10 text-violet-400' :
+              customer.status === 'fitted' ? 'bg-emerald-400/10 text-emerald-400' :
+              'bg-white/10 text-white/60'
+            }`}>{customer.status || 'lead'}</span>
+            <button onClick={() => { setEditForm({...customer}); setEditing(true); }} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white">
+              <Edit3 className="w-4 h-4" />
+            </button>
           </div>
         </div>
         <div className="grid grid-cols-4 gap-2">
@@ -177,15 +205,53 @@ export default function CustomerDetail() {
       </div>
 
       {/* Details */}
-      <div className="card glass p-4 mb-4">
-        <h2 className="font-semibold mb-3">Details</h2>
-        <div className="space-y-2 text-sm">
-          {customer.email && <p className="text-white/60"><span className="text-white/30">Email:</span> {customer.email}</p>}
-          {customer.address && <p className="text-white/60"><span className="text-white/30">Address:</span> {customer.address}</p>}
-          {customer.source && <p className="text-white/60"><span className="text-white/30">Source:</span> {customer.source}</p>}
-          {customer.notes && <p className="text-white/60"><span className="text-white/30">Notes:</span> {customer.notes}</p>}
+      {editing ? (
+        <form onSubmit={saveEdit} className="card glass p-4 mb-4">
+          <h2 className="font-semibold mb-3">Edit Customer</h2>
+          <div className="space-y-2 text-sm">
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className="text-xs text-white/30">Name</label><input value={editForm.name} onChange={e=> setEditForm({...editForm, name: e.target.value})} required /></div>
+              <div><label className="text-xs text-white/30">Phone</label><input value={editForm.phone} onChange={e=> setEditForm({...editForm, phone: e.target.value})} /></div>
+            </div>
+            <div><label className="text-xs text-white/30">Email</label><input value={editForm.email} onChange={e=> setEditForm({...editForm, email: e.target.value})} /></div>
+            <div><label className="text-xs text-white/30">Address</label><input value={editForm.address} onChange={e=> setEditForm({...editForm, address: e.target.value})} /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className="text-xs text-white/30">Source</label>
+                <select value={editForm.source} onChange={e=> setEditForm({...editForm, source: e.target.value})}>
+                  <option value="walk-in">walk-in</option>
+                  <option value="facebook">facebook</option>
+                  <option value="referral">referral</option>
+                  <option value="returning">returning</option>
+                  <option value="google">google</option>
+                </select>
+              </div>
+              <div><label className="text-xs text-white/30">Status</label>
+                <select value={editForm.status} onChange={e=> setEditForm({...editForm, status: e.target.value})}>
+                  <option value="lead">Lead</option>
+                  <option value="quoted">Quoted</option>
+                  <option value="ordered">Ordered</option>
+                  <option value="fitted">Fitted</option>
+                </select>
+              </div>
+            </div>
+            <div><label className="text-xs text-white/30">Notes</label><textarea value={editForm.notes} onChange={e=> setEditForm({...editForm, notes: e.target.value})} rows={3} /></div>
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button type="submit" className="btn-primary px-4 py-2 text-xs flex items-center gap-1"><Save className="w-3 h-3" /> Save</button>
+            <button type="button" onClick={() => setEditing(false)} className="px-4 py-2 text-xs rounded-lg bg-white/5 hover:bg-white/10 flex items-center gap-1"><X className="w-3 h-3" /> Cancel</button>
+          </div>
+        </form>
+      ) : (
+        <div className="card glass p-4 mb-4">
+          <h2 className="font-semibold mb-3">Details</h2>
+          <div className="space-y-2 text-sm">
+            {customer.email && <p className="text-white/60"><span className="text-white/30">Email:</span> {customer.email}</p>}
+            {customer.address && <p className="text-white/60"><span className="text-white/30">Address:</span> {customer.address}</p>}
+            {customer.source && <p className="text-white/60"><span className="text-white/30">Source:</span> {customer.source}</p>}
+            {customer.notes && <p className="text-white/60"><span className="text-white/30">Notes:</span> {customer.notes}</p>}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Quotes */}
       <div className="card glass p-4 mb-4">
@@ -256,6 +322,33 @@ export default function CustomerDetail() {
           )}
         </div>
       </div>
+
+      {/* Orders */}
+      {orders.length > 0 && (
+        <div className="card glass p-4 mb-4">
+          <h2 className="font-semibold mb-3 flex items-center gap-2">
+            <Truck className="w-4 h-4 text-violet-400" /> Orders
+          </h2>
+          <div className="space-y-2">
+            {orders.map(o => (
+              <div key={o.id} className="p-3 rounded-xl bg-white/4 border border-white/5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{o.room_name} · {o.product_name}</p>
+                    <p className="text-xs text-white/40">£{parseFloat(o.total).toFixed(2)} · Status: {o.status}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    o.status === 'paid' ? 'bg-emerald-400/10 text-emerald-400' :
+                    o.status === 'cancelled' ? 'bg-red-400/10 text-red-400' :
+                    'bg-violet-400/10 text-violet-400'
+                  }`}>{o.status}</span>
+                </div>
+                {o.scheduled_date && <p className="text-xs text-white/30 mt-1">Fit date: {o.scheduled_date} {o.fitter_name ? `· Fitter: ${o.fitter_name}` : ''}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Samples */}
       <div className="card glass p-4 mb-4">
