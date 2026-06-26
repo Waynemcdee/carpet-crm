@@ -1388,21 +1388,22 @@ def create_warranty(data: dict):
     conn.close()
     return dict(row)
 
-# Serve frontend static files
+# Mount static assets FIRST (before catch-all)
+app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+# SPA catch-all — serves index.html for all non-API routes
 from fastapi.responses import FileResponse
 
 @app.get("/{path:path}")
 def serve_spa(path: str):
-    # API routes are handled by their own decorators above
-    # This catch-all serves the React app for all other routes
+    # Skip API routes
+    if path.startswith("api/"):
+        return {"detail": "Not Found"}
     index_path = os.path.join(os.path.dirname(__file__), "dist", "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {"detail": "Not Found"}
-
-# Mount static assets
-app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 if __name__ == "__main__":
     import uvicorn
