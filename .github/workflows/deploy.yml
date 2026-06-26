@@ -1,0 +1,21 @@
+name: Auto Deploy to Render
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render Deploy
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            https://api.render.com/v1/services/srv-d8v41p9kh4rs73d7ocjg/deploys
+          echo "Deploy triggered!"
+      - name: Wait for deploy
+        run: |
+          echo "Waiting 60s for Render to pick up the new commit..."
+          sleep 60
+          echo "Done. Check https://dashboard.render.com for status."
