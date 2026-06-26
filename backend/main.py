@@ -117,6 +117,9 @@ def init_db():
         notes TEXT,
         customer_notified INTEGER DEFAULT 0,
         reminder_sent INTEGER DEFAULT 0,
+        photos_created INTEGER DEFAULT 0,
+        balance_paid INTEGER DEFAULT 0,
+        amount_due REAL,
         FOREIGN KEY (customer_id) REFERENCES customers(id),
         FOREIGN KEY (quote_id) REFERENCES quotes(id)
     );
@@ -267,6 +270,9 @@ class AppointmentCreate(BaseModel):
     scheduled_date: str
     duration_minutes: int = 120
     notes: str = ""
+    photos_created: Optional[int] = 0
+    balance_paid: Optional[int] = 0
+    amount_due: Optional[float] = None
 
 # ─── ENDPOINTS ───
 
@@ -603,9 +609,9 @@ def send_follow_up(sample_id: int, follow_up_number: int = Form(...)):
 def create_appointment(appt: AppointmentCreate):
     conn = get_db()
     cursor = conn.execute('''
-        INSERT INTO appointments (customer_id, quote_id, type, fitter_name, fitter_phone, scheduled_date, duration_minutes, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (appt.customer_id, appt.quote_id, appt.type, appt.fitter_name, appt.fitter_phone, appt.scheduled_date, appt.duration_minutes, appt.notes))
+        INSERT INTO appointments (customer_id, quote_id, type, fitter_name, fitter_phone, scheduled_date, duration_minutes, notes, photos_created, balance_paid, amount_due)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (appt.customer_id, appt.quote_id, appt.type, appt.fitter_name, appt.fitter_phone, appt.scheduled_date, appt.duration_minutes, appt.notes, appt.photos_created or 0, appt.balance_paid or 0, appt.amount_due))
     
     customer = conn.execute("SELECT * FROM customers WHERE id = ?", (appt.customer_id,)).fetchone()
     if customer:
@@ -681,10 +687,10 @@ def update_appointment(appointment_id: int, appt: AppointmentCreate):
     conn.execute('''
         UPDATE appointments 
         SET customer_id = ?, quote_id = ?, type = ?, fitter_name = ?, fitter_phone = ?, 
-            scheduled_date = ?, duration_minutes = ?, notes = ?
+            scheduled_date = ?, duration_minutes = ?, notes = ?, photos_created = ?, balance_paid = ?, amount_due = ?
         WHERE id = ?
     ''', (appt.customer_id, appt.quote_id, appt.type, appt.fitter_name, appt.fitter_phone,
-          appt.scheduled_date, appt.duration_minutes, appt.notes, appointment_id))
+          appt.scheduled_date, appt.duration_minutes, appt.notes, appt.photos_created or 0, appt.balance_paid or 0, appt.amount_due, appointment_id))
     
     log_activity(conn, appt.customer_id, 'appointment_updated', f'Appointment updated to {appt.scheduled_date}')
     conn.commit()

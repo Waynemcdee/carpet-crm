@@ -1,507 +1,466 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, X, Upload, Filter, Search, Tag, Ruler, Palette, Shield, Droplets, Package } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Check, Camera, CreditCard, Calendar as CalIcon, Clock, User, Phone, ChevronLeft, ChevronRight } from 'lucide-react';
 import { API } from '../api';
 
 export default function ShowroomPage() {
-  const [items, setItems] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [filterCategory, setFilterCategory] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [previewImage, setPreviewImage] = useState(null);
+  const [currentDate, setCurrentDate] = useState(new Date(2026, 5, 1)); // June 2026
+  const [selectedDate, setSelectedDate] = useState(null);
 
   const [formData, setFormData] = useState({
-    name: '',
-    category: 'carpet',
-    supplier: '',
-    price_retail: '',
-    price_trade: '',
-    width_m: '4.0',
-    roll_length_m: '30.0',
-    pile_weight: '',
-    backing: '',
-    colour: '',
-    pattern: '',
-    durability_rating: '',
-    stain_resistant: false,
-    bleach_cleanable: false,
-    suitable_for: '',
-    notes: ''
+    customer_id: '',
+    scheduled_date: '',
+    scheduled_time: '10:00',
+    duration_minutes: 60,
+    notes: '',
+    photos_created: false,
+    balance_paid: false,
+    amount_due: ''
   });
 
-  const categories = ['carpet', 'luxury-vinyl', 'lvt', 'wilton', 'underlay', 'accessories'];
-
   useEffect(() => {
-    loadItems();
-  }, [filterCategory]);
+    loadCustomers();
+    loadBookings();
+  }, []);
 
-  async function loadItems() {
+  async function loadCustomers() {
+    try {
+      const data = await API.getCustomers();
+      setCustomers(data.customers || data);
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadBookings() {
     setLoading(true);
     try {
-      const data = await API.getShowroomItems(filterCategory || undefined);
-      setItems(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+      const start = formatDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
+      const end = formatDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0));
+      const data = await API.getCalendar(start, end);
+      // Filter only showroom/visit type appointments
+      const showroom = (data || []).filter(b => b.type === 'visit' || b.type === 'showroom');
+      setBookings(showroom);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   }
 
-  function resetForm() {
+  function formatDate(d) {
+    return d.toISOString().split('T')[0];
+  }
+
+  function getDaysInMonth(year, month) {
+    return new Date(year, month + 1, 0).getDate();
+  }
+
+  function getFirstDayOfMonth(year, month) {
+    return new Date(year, month, 1).getDay();
+  }
+
+  function getBookingsForDate(day) {
+    const dateStr = formatDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day));
+    return bookings.filter(b => b.scheduled_date?.startsWith(dateStr));
+  }
+
+  function openNewForm(date = null) {
+    const today = date || new Date();
+    const dateStr = formatDate(today);
     setFormData({
-      name: '',
-      category: 'carpet',
-      supplier: '',
-      price_retail: '',
-      price_trade: '',
-      width_m: '4.0',
-      roll_length_m: '30.0',
-      pile_weight: '',
-      backing: '',
-      colour: '',
-      pattern: '',
-      durability_rating: '',
-      stain_resistant: false,
-      bleach_cleanable: false,
-      suitable_for: '',
-      notes: ''
+      customer_id: '',
+      scheduled_date: dateStr,
+      scheduled_time: '10:00',
+      duration_minutes: 60,
+      notes: '',
+      photos_created: false,
+      balance_paid: false,
+      amount_due: ''
     });
-    setPreviewImage(null);
     setEditingId(null);
-  }
-
-  function openNewForm() {
-    resetForm();
     setShowForm(true);
   }
 
-  function openEditForm(item) {
+  function openEditForm(booking) {
+    const dt = booking.scheduled_date?.split('T') || ['', ''];
     setFormData({
-      name: item.name,
-      category: item.category,
-      supplier: item.supplier || '',
-      price_retail: item.price_retail || '',
-      price_trade: item.price_trade || '',
-      width_m: item.width_m?.toString() || '4.0',
-      roll_length_m: item.roll_length_m?.toString() || '30.0',
-      pile_weight: item.pile_weight || '',
-      backing: item.backing || '',
-      colour: item.colour || '',
-      pattern: item.pattern || '',
-      durability_rating: item.durability_rating || '',
-      stain_resistant: !!item.stain_resistant,
-      bleach_cleanable: !!item.bleach_cleanable,
-      suitable_for: item.suitable_for || '',
-      notes: item.notes || ''
+      customer_id: booking.customer_id?.toString() || '',
+      scheduled_date: dt[0],
+      scheduled_time: dt[1]?.substring(0, 5) || '10:00',
+      duration_minutes: booking.duration_minutes || 60,
+      notes: booking.notes || '',
+      photos_created: booking.photos_created || false,
+      balance_paid: booking.balance_paid || false,
+      amount_due: booking.amount_due?.toString() || ''
     });
-    setPreviewImage(item.image);
-    setEditingId(item.id);
+    setEditingId(booking.id);
     setShowForm(true);
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     try {
-      const submitData = new FormData();
-      Object.keys(formData).forEach(key => {
-        if (key === 'stain_resistant' || key === 'bleach_cleanable') {
-          submitData.append(key, formData[key] ? '1' : '0');
-        } else {
-          submitData.append(key, formData[key]);
-        }
-      });
-
-      const imageFile = e.target.image?.files[0];
-      if (imageFile) {
-        submitData.append('image', imageFile);
-      }
+      const customer = customers.find(c => c.id.toString() === formData.customer_id);
+      const payload = {
+        customer_id: parseInt(formData.customer_id),
+        type: 'visit',
+        scheduled_date: `${formData.scheduled_date}T${formData.scheduled_time}`,
+        duration_minutes: parseInt(formData.duration_minutes) || 60,
+        fitter_name: 'Showroom',
+        notes: formData.notes,
+        photos_created: formData.photos_created ? 1 : 0,
+        balance_paid: formData.balance_paid ? 1 : 0,
+        amount_due: formData.amount_due ? parseFloat(formData.amount_due) : null
+      };
 
       if (editingId) {
-        await API.updateShowroomItem(editingId, submitData);
+        await API.updateAppointment(editingId, payload);
       } else {
-        await API.createShowroomItem(submitData);
+        await API.createAppointment(payload);
       }
       setShowForm(false);
-      resetForm();
-      loadItems();
-    } catch (e) {
-      alert('Failed: ' + e.message);
+      loadBookings();
+    } catch (err) {
+      alert('Failed: ' + (err.message || 'Unknown error'));
     }
   }
 
   async function handleDelete(id) {
-    if (!confirm('Delete this item from the showroom?')) return;
+    if (!confirm('Delete this showroom booking?')) return;
     try {
-      await API.deleteShowroomItem(id);
-      loadItems();
-    } catch (e) {
-      alert('Failed: ' + e.message);
-    }
+      await API.deleteAppointment(id);
+      loadBookings();
+    } catch (e) { console.error(e); }
   }
 
-  const filteredItems = items.filter(item =>
-    !searchQuery ||
-    item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.supplier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.colour?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  if (loading) {
-    return (
-      <div className="px-5 pt-6 pb-4">
-        <div className="shimmer h-8 w-40 rounded-lg mb-4"></div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {[1,2,3,4].map(i => <div key={i} className="shimmer h-64 rounded-2xl"></div>)}
-        </div>
-      </div>
-    );
+  async function togglePhotos(id, current) {
+    try {
+      await API.updateAppointment(id, { photos_created: current ? 0 : 1 });
+      loadBookings();
+    } catch (e) { console.error(e); }
   }
+
+  async function togglePaid(id, current) {
+    try {
+      await API.updateAppointment(id, { balance_paid: current ? 0 : 1 });
+      loadBookings();
+    } catch (e) { console.error(e); }
+  }
+
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const daysInMonth = getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth());
+  const firstDay = getFirstDayOfMonth(currentDate.getFullYear(), currentDate.getMonth());
 
   return (
     <div className="px-5 pt-6 pb-4">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Showroom</h1>
-          <p className="text-sm text-white/40 mt-1">{items.length} items in stock</p>
+          <h1 className="text-2xl font-bold">Showroom Calendar</h1>
+          <p className="text-sm text-white/40 mt-1">Book customers in for visits, photos & payments</p>
         </div>
-        <button onClick={openNewForm} className="btn-primary flex items-center gap-2 px-4 py-2">
-          <Plus className="w-4 h-4" /> Add Item
+        <button onClick={() => openNewForm()} className="btn-primary flex items-center gap-2 px-4 py-2">
+          <Plus className="w-4 h-4" /> Book Customer
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search carpets, suppliers, colours..."
-            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm"
-          />
+      {/* Calendar */}
+      <div className="card glass mb-6">
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <button
+            onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
+            className="p-2 hover:bg-white/10 rounded-lg"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <h2 className="text-lg font-semibold">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h2>
+          <button
+            onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
+            className="p-2 hover:bg-white/10 rounded-lg"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
         </div>
-        <select
-          value={filterCategory}
-          onChange={e => setFilterCategory(e.target.value)}
-          className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-        >
-          <option value="">All Categories</option>
-          {categories.map(c => (
-            <option key={c} value={c}>{c.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
+        <div className="grid grid-cols-7 text-center text-xs text-white/40 py-2">
+          {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d}>{d}</div>)}
+        </div>
+        <div className="grid grid-cols-7 gap-px bg-white/5">
+          {Array.from({ length: firstDay }, (_, i) => (
+            <div key={`empty-${i}`} className="aspect-square p-1" />
           ))}
-        </select>
-      </div>
-
-      {/* Items Grid */}
-      {filteredItems.length === 0 ? (
-        <div className="text-center py-12">
-          <Package className="w-12 h-12 text-white/20 mx-auto mb-4" />
-          <p className="text-white/40">No items found.</p>
-          <p className="text-sm text-white/30 mt-1">Add your first carpet or sample to the showroom.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {filteredItems.map(item => (
-            <div key={item.id} className="card glass overflow-hidden group">
-              <div className="relative aspect-square bg-white/5">
-                {item.image ? (
-                  <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-white/20">
-                    <Upload className="w-8 h-8" />
+          {Array.from({ length: daysInMonth }, (_, i) => {
+            const day = i + 1;
+            const dayBookings = getBookingsForDate(day);
+            const isToday = new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
+            return (
+              <div
+                key={day}
+                onClick={() => { setSelectedDate(day); }}
+                className={`aspect-square p-1.5 border border-white/5 cursor-pointer transition-colors hover:bg-white/10 ${
+                  isToday ? 'bg-amber-500/20 border-amber-500/30' : ''
+                } ${selectedDate === day ? 'bg-white/15' : ''}`}
+              >
+                <div className={`text-sm font-medium mb-0.5 ${isToday ? 'text-amber-400' : ''}`}>{day}</div>
+                {dayBookings.length > 0 && (
+                  <div className="flex flex-col gap-0.5">
+                    {dayBookings.slice(0, 2).map((b, idx) => (
+                      <div key={idx} className={`text-[9px] px-1 py-0.5 rounded truncate ${
+                        b.photos_created && b.balance_paid ? 'bg-green-500/30 text-green-300' :
+                        b.photos_created ? 'bg-blue-500/30 text-blue-300' :
+                        b.balance_paid ? 'bg-emerald-500/30 text-emerald-300' :
+                        'bg-purple-500/30 text-purple-300'
+                      }`}>
+                        {b.customer_name?.split(' ')[0]}
+                      </div>
+                    ))}
+                    {dayBookings.length > 2 && (
+                      <div className="text-[9px] text-white/40">+{dayBookings.length - 2}</div>
+                    )}
                   </div>
                 )}
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                  <button
-                    onClick={() => openEditForm(item)}
-                    className="p-1.5 bg-black/50 backdrop-blur rounded-lg text-white hover:bg-black/70"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    className="p-1.5 bg-black/50 backdrop-blur rounded-lg text-white hover:bg-red-500/80"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <div className="absolute bottom-2 left-2">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/50 backdrop-blur text-white/80 capitalize">
-                    {item.category?.replace('-', ' ')}
-                  </span>
-                </div>
               </div>
+            );
+          })}
+        </div>
+      </div>
 
-              <div className="p-3">
-                <p className="font-semibold text-sm truncate">{item.name}</p>
-                <p className="text-xs text-white/40">{item.supplier || 'No supplier'}</p>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-sm font-medium text-amber-400">£{item.price_retail?.toFixed(2) || '0.00'}/m²</span>
-                  <span className="text-[10px] text-white/30">{item.width_m}m wide</span>
-                </div>
-                <div className="flex gap-1 mt-2">
-                  {item.stain_resistant && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">Stain Resist</span>
-                  )}
-                  {item.bleach_cleanable && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400">Bleach Clean</span>
-                  )}
-                </div>
-              </div>
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 mb-6 text-xs text-white/50">
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-purple-500/30" /> <span>Booked</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-blue-500/30" /> <span>Photos Done</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-emerald-500/30" /> <span>Paid</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-green-500/30" /> <span>Complete</span></div>
+      </div>
+
+      {/* Selected Date Bookings */}
+      {selectedDate && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-3">
+            {selectedDate} {monthNames[currentDate.getMonth()]} — Showroom Bookings
+          </h3>
+          {getBookingsForDate(selectedDate).length === 0 ? (
+            <div className="card glass text-center py-8">
+              <p className="text-white/40">No bookings for this date.</p>
+              <button onClick={() => openNewForm(new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDate))} className="btn-primary mt-3 px-4 py-2 text-sm">
+                <Plus className="w-4 h-4 inline mr-1" /> Book Customer
+              </button>
             </div>
-          ))}
+          ) : (
+            <div className="space-y-3">
+              {getBookingsForDate(selectedDate).map(booking => (
+                <div key={booking.id} className="card glass p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-pink-600 flex items-center justify-center text-sm font-bold">
+                          {booking.customer_name?.split(' ').map(n => n[0]).join('') || '?'}
+                        </div>
+                        <div>
+                          <p className="font-semibold">{booking.customer_name}</p>
+                          <div className="flex items-center gap-3 text-xs text-white/40">
+                            <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {booking.customer_phone}</span>
+                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {booking.scheduled_date?.split('T')[1]?.substring(0,5)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      {booking.notes && (
+                        <p className="text-sm text-white/50 mb-3 pl-13">{booking.notes}</p>
+                      )}
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          onClick={() => togglePhotos(booking.id, booking.photos_created)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                            booking.photos_created
+                              ? 'bg-blue-500/30 text-blue-300 border border-blue-500/30'
+                              : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                          {booking.photos_created ? 'Photos Created' : 'Create Photos'}
+                        </button>
+                        <button
+                          onClick={() => togglePaid(booking.id, booking.balance_paid)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                            booking.balance_paid
+                              ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          {booking.balance_paid ? 'Balance Paid' : 'Pay Balance'}
+                        </button>
+                        {booking.amount_due > 0 && !booking.balance_paid && (
+                          <span className="text-xs text-amber-400 flex items-center gap-1">
+                            <CreditCard className="w-3 h-3" /> £{booking.amount_due} due
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => openEditForm(booking)} className="p-2 hover:bg-white/10 rounded-lg">
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDelete(booking.id)} className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Form Modal */}
+      {/* All Upcoming Bookings List */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3">All Upcoming Showroom Bookings</h3>
+        {bookings.filter(b => new Date(b.scheduled_date) >= new Date()).length === 0 ? (
+          <div className="card glass text-center py-8">
+            <CalIcon className="w-10 h-10 text-white/20 mx-auto mb-3" />
+            <p className="text-white/40">No upcoming showroom bookings.</p>
+            <p className="text-sm text-white/30 mt-1">Click "Book Customer" to schedule a visit.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {bookings
+              .filter(b => new Date(b.scheduled_date) >= new Date())
+              .sort((a, b) => new Date(a.scheduled_date) - new Date(b.scheduled_date))
+              .map(booking => (
+                <div key={booking.id} className="flex items-center gap-3 card glass p-3 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => {
+                  const d = new Date(booking.scheduled_date);
+                  setCurrentDate(new Date(d.getFullYear(), d.getMonth(), 1));
+                  setSelectedDate(d.getDate());
+                }}>
+                  <div className={`w-2 h-10 rounded-full ${
+                    booking.photos_created && booking.balance_paid ? 'bg-green-500' :
+                    booking.photos_created ? 'bg-blue-500' :
+                    booking.balance_paid ? 'bg-emerald-500' :
+                    'bg-purple-500'
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{booking.customer_name}</p>
+                    <p className="text-xs text-white/40">{booking.scheduled_date?.split('T')[0]} at {booking.scheduled_date?.split('T')[1]?.substring(0,5)}</p>
+                  </div>
+                  <div className="flex gap-1">
+                    {booking.photos_created && <Camera className="w-4 h-4 text-blue-400" />}
+                    {booking.balance_paid && <CreditCard className="w-4 h-4 text-emerald-400" />}
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+
+      {/* Booking Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-surface border border-white/10 rounded-2xl w-full max-w-2xl my-8">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold">{editingId ? 'Edit Item' : 'Add Showroom Item'}</h2>
-                <button onClick={() => { setShowForm(false); resetForm(); }} className="p-1 hover:bg-white/5 rounded-lg">
-                  <X className="w-5 h-5" />
-                </button>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="card glass w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h3 className="text-lg font-bold">{editingId ? 'Edit Showroom Booking' : 'Book Showroom Visit'}</h3>
+              <button onClick={() => setShowForm(false)} className="p-2 hover:bg-white/10 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Customer</label>
+                <select
+                  value={formData.customer_id}
+                  onChange={e => setFormData({...formData, customer_id: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
+                  required
+                >
+                  <option value="">Select customer...</option>
+                  {customers.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} - {c.phone}</option>
+                  ))}
+                </select>
               </div>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <label className="block text-sm text-white/50 mb-1">Image</label>
-                    <div className="flex items-center gap-4">
-                      <div className="w-24 h-24 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
-                        {previewImage ? (
-                          <img src={previewImage} alt="Preview" className="w-full h-full object-cover" />
-                        ) : (
-                          <Upload className="w-6 h-6 text-white/20" />
-                        )}
-                      </div>
-                      <input
-                        type="file"
-                        name="image"
-                        accept="image/*"
-                        onChange={e => {
-                          const file = e.target.files[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => setPreviewImage(reader.result);
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                        className="flex-1 text-sm text-white/50 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-white/10 file:text-white hover:file:bg-white/20"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Name *</label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={e => setFormData({...formData, name: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                      placeholder="Cormar Primo Ultra"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Category</label>
-                    <select
-                      value={formData.category}
-                      onChange={e => setFormData({...formData, category: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                    >
-                      {categories.map(c => (
-                        <option key={c} value={c}>{c.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Supplier</label>
-                    <input
-                      type="text"
-                      value={formData.supplier}
-                      onChange={e => setFormData({...formData, supplier: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                      placeholder="Cormar Carpets"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Retail Price (£/m²)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.price_retail}
-                      onChange={e => setFormData({...formData, price_retail: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                      placeholder="28.00"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Trade Price (£/m²)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.price_trade}
-                      onChange={e => setFormData({...formData, price_trade: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                      placeholder="14.00"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Width (m)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={formData.width_m}
-                      onChange={e => setFormData({...formData, width_m: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                      placeholder="4.0"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Roll Length (m)</label>
-                    <input
-                      type="number"
-                      step="1"
-                      value={formData.roll_length_m}
-                      onChange={e => setFormData({...formData, roll_length_m: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                      placeholder="30"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Pile Weight</label>
-                    <input
-                      type="text"
-                      value={formData.pile_weight}
-                      onChange={e => setFormData({...formData, pile_weight: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                      placeholder="40oz"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Backing</label>
-                    <input
-                      type="text"
-                      value={formData.backing}
-                      onChange={e => setFormData({...formData, backing: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                      placeholder="Action Bac"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Colour</label>
-                    <input
-                      type="text"
-                      value={formData.colour}
-                      onChange={e => setFormData({...formData, colour: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                      placeholder="Beige"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Pattern</label>
-                    <input
-                      type="text"
-                      value={formData.pattern}
-                      onChange={e => setFormData({...formData, pattern: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                      placeholder="Plain, Stripe, Herringbone"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Durability Rating</label>
-                    <select
-                      value={formData.durability_rating}
-                      onChange={e => setFormData({...formData, durability_rating: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                    >
-                      <option value="">Select...</option>
-                      <option value="domestic-light">Domestic Light</option>
-                      <option value="domestic-medium">Domestic Medium</option>
-                      <option value="domestic-heavy">Domestic Heavy</option>
-                      <option value="commercial">Commercial</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-white/50 mb-1">Suitable For</label>
-                    <input
-                      type="text"
-                      value={formData.suitable_for}
-                      onChange={e => setFormData({...formData, suitable_for: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
-                      placeholder="Living room, stairs, bedroom"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.stain_resistant}
-                      onChange={e => setFormData({...formData, stain_resistant: e.target.checked})}
-                      className="w-4 h-4 rounded border-white/20"
-                    />
-                    <span className="text-sm text-white/60">Stain Resistant</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.bleach_cleanable}
-                      onChange={e => setFormData({...formData, bleach_cleanable: e.target.checked})}
-                      className="w-4 h-4 rounded border-white/20"
-                    />
-                    <span className="text-sm text-white/60">Bleach Cleanable</span>
-                  </label>
-                </div>
-
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm text-white/50 mb-1">Notes</label>
-                  <textarea
-                    value={formData.notes}
-                    onChange={e => setFormData({...formData, notes: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm min-h-[80px]"
-                    placeholder="Additional details, installation notes..."
+                  <label className="block text-sm font-medium mb-1.5">Date</label>
+                  <input
+                    type="date"
+                    value={formData.scheduled_date}
+                    onChange={e => setFormData({...formData, scheduled_date: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
+                    required
                   />
                 </div>
-
-                <div className="flex gap-3 pt-2">
-                  {editingId && (
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(editingId)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 text-sm font-medium"
-                    >
-                      <Trash2 className="w-4 h-4" /> Delete
-                    </button>
-                  )}
-                  <button type="button" onClick={() => { setShowForm(false); resetForm(); }}
-                    className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-medium">
-                    Cancel
-                  </button>
-                  <button type="submit" className="flex-1 btn-primary py-2.5 text-sm font-medium">
-                    {editingId ? 'Update' : 'Add'} Item
-                  </button>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Time</label>
+                  <input
+                    type="time"
+                    value={formData.scheduled_time}
+                    onChange={e => setFormData({...formData, scheduled_time: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
+                    required
+                  />
                 </div>
-              </form>
-            </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Duration (min)</label>
+                  <input
+                    type="number"
+                    value={formData.duration_minutes}
+                    onChange={e => setFormData({...formData, duration_minutes: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
+                    min="15"
+                    step="15"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Amount Due (£)</label>
+                  <input
+                    type="number"
+                    value={formData.amount_due}
+                    onChange={e => setFormData({...formData, amount_due: e.target.value})}
+                    placeholder="0.00"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Notes</label>
+                <textarea
+                  value={formData.notes}
+                  onChange={e => setFormData({...formData, notes: e.target.value})}
+                  placeholder="What they want to see, special requirements..."
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm min-h-[80px]"
+                />
+              </div>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.photos_created}
+                    onChange={e => setFormData({...formData, photos_created: e.target.checked})}
+                    className="w-4 h-4 rounded accent-blue-500"
+                  />
+                  <span className="text-sm">Photos Created</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.balance_paid}
+                    onChange={e => setFormData({...formData, balance_paid: e.target.checked})}
+                    className="w-4 h-4 rounded accent-emerald-500"
+                  />
+                  <span className="text-sm">Balance Paid</span>
+                </label>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2.5 border border-white/10 rounded-xl text-sm hover:bg-white/5">
+                  Cancel
+                </button>
+                <button type="submit" className="flex-1 btn-primary py-2.5 text-sm">
+                  {editingId ? 'Update Booking' : 'Book Visit'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
