@@ -304,7 +304,7 @@ export default function CalendarPage() {
                       onChange={e => handleFitterSelect(e.target.value)}
                       className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
                     >
-                      <option value="">Select fitter...</option>
+                      <option value="">{fitters.length > 0 ? 'Select fitter...' : 'No fitters added yet'}</option>
                       {fitters.map(f => (
                         <option key={f.id} value={f.name}>{f.name}</option>
                       ))}
@@ -314,12 +314,13 @@ export default function CalendarPage() {
                       <input
                         type="text"
                         placeholder="Fitter name"
-                        value={formData.fitter_name === '__custom__' ? '' : formData.fitter_name}
+                        value=""
                         onChange={e => setFormData({...formData, fitter_name: e.target.value})}
                         className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm"
                       />
                     )}
                   </div>
+                  {fitters.length === 0 && <p className="text-xs text-white/30 mt-1">Add fitters in the Fitters page first.</p>}
                 </div>
 
                 <div>
