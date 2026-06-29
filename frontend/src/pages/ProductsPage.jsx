@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Pencil, Trash2, Package, Search, X, Upload, Image as ImageIcon, Grid3X3 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, Search, X, Upload, Image as ImageIcon, Grid3X3, FolderSync, Loader2 } from 'lucide-react';
 import { API } from '../api';
 
 const CATEGORIES = ['Carpet', 'Vinyl', 'Laminate', 'LVT', 'Underlay', 'Accessories'];
@@ -18,6 +18,10 @@ export default function ProductsPage() {
   const [imagePreview, setImagePreview] = useState('');
   const [texturePreview, setTexturePreview] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showSync, setShowSync] = useState(false);
+  const [syncUrl, setSyncUrl] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
   const imageInputRef = useRef();
   const textureInputRef = useRef();
 
@@ -107,6 +111,28 @@ export default function ProductsPage() {
     catch (e) { alert('Failed: ' + e.message); }
   }
 
+  async function handleSync(e) {
+    e.preventDefault();
+    if (!syncUrl.trim()) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch('/api/products/sync-drive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder_url: syncUrl.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Sync failed');
+      setSyncResult(data);
+      loadProducts();
+    } catch (err) {
+      setSyncResult({ error: err.message });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const filtered = products.filter(p =>
     !search || (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
     (p.category || '').toLowerCase().includes(search.toLowerCase())
@@ -119,9 +145,14 @@ export default function ProductsPage() {
           <p className="text-white/40 text-sm mb-1">Manage your flooring range</p>
           <h1 className="text-3xl font-bold">Products</h1>
         </div>
-        <button onClick={openAdd} className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm">
-          <Plus className="w-4 h-4" /> Add Product
-        </button>
+        <div className="flex gap-3">
+          <button onClick={() => { setShowSync(true); setSyncResult(null); }} className="px-5 py-2.5 flex items-center gap-2 text-sm bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-colors">
+            <FolderSync className="w-4 h-4" /> Sync from Drive
+          </button>
+          <button onClick={openAdd} className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm">
+            <Plus className="w-4 h-4" /> Add Product
+          </button>
+        </div>
       </div>
 
       <div className="relative max-w-sm mb-6">
@@ -258,6 +289,65 @@ export default function ProductsPage() {
                 <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm">Cancel</button>
                 <button type="submit" disabled={saving} className="btn-primary px-6 py-2 text-sm">
                   {saving ? 'Saving...' : (editing ? 'Update Product' : 'Add Product')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Sync Modal */}
+      {showSync && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="card glass w-full max-w-lg">
+            <div className="flex items-center justify-between p-6 border-b border-white/[0.06]">
+              <h2 className="text-xl font-bold">Sync from Google Drive</h2>
+              <button onClick={() => setShowSync(false)} className="p-2 hover:bg-white/5 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSync} className="p-6 space-y-4">
+              <p className="text-sm text-white/40">
+                Paste a publicly shared Google Drive folder link. The folder must be set to <strong>"Anyone with the link can view"</strong>.
+              </p>
+              <div>
+                <label className="text-sm text-white/40 mb-1 block">Folder URL</label>
+                <input
+                  value={syncUrl}
+                  onChange={e => setSyncUrl(e.target.value)}
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  className="w-full"
+                  required
+                />
+              </div>
+              <div className="text-xs text-white/30 space-y-1">
+                <p>Expected folder structure:</p>
+                <code className="block bg-black/30 p-2 rounded-lg">
+                  McLaren Flooring/<br/>
+                  &nbsp;&nbsp;Carpets/<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;Twist Supreme/<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Grey.jpg<br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Beige.jpg
+                </code>
+              </div>
+              {syncResult && (
+                <div className={`p-3 rounded-lg text-sm ${syncResult.error ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                  {syncResult.error ? (
+                    <p>Error: {syncResult.error}</p>
+                  ) : (
+                    <>
+                      <p className="font-medium">Sync complete</p>
+                      <p>Created: {syncResult.created} · Skipped (duplicates): {syncResult.skipped}</p>
+                      {syncResult.errors?.length > 0 && (
+                        <p className="text-white/40 mt-1">{syncResult.errors.length} warnings</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowSync(false)} className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm">Cancel</button>
+                <button type="submit" disabled={syncing} className="btn-primary px-6 py-2 text-sm flex items-center gap-2">
+                  {syncing ? <><Loader2 className="w-4 h-4 animate-spin" /> Syncing...</> : <><FolderSync className="w-4 h-4" /> Start Sync</>}
                 </button>
               </div>
             </form>

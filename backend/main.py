@@ -564,6 +564,143 @@ def get_product_recommendations(product_id: int):
     conn.close()
     return [dict(row) for row in rows]
 
+# ── Google Drive public-folder sync (no API key) ──
+import requests
+from bs4 import BeautifulSoup
+import re
+
+@app.post("/api/products/sync-drive")
+async def sync_drive(data: dict):
+    """Import products from a publicly shared Google Drive folder.
+    The folder must be set to 'Anyone with the link can view'.
+    Expected structure: Folder/{CarpetName}/{Colour}.jpg
+    """
+    folder_url = data.get("folder_url", "").strip()
+    if not folder_url:
+        raise HTTPException(400, "folder_url required")
+
+    # Extract folder ID
+    m = re.search(r"/folders/([a-zA-Z0-9\-_]+)", folder_url)
+    if not m:
+        raise HTTPException(400, "Invalid Google Drive folder URL")
+    folder_id = m.group(1)
+
+    # 1) Try the legacy embedded folder view (returns plain HTML)
+    embed_url = f"https://drive.google.com/embeddedfolderview?id={folder_id}#list"
+    try:
+        r = requests.get(embed_url, timeout=20, headers={"User-Agent":"Mozilla/5.0"})
+        r.raise_for_status()
+    except Exception as e:
+        raise HTTPException(502, f"Could not reach Google Drive folder: {e}")
+
+    soup = BeautifulSoup(r.text, "html.parser")
+    rows = soup.find_all("div", class_="flip-entry")
+
+    created = 0
+    skipped = 0
+    errors = []
+    conn = get_db()
+
+    for row in rows:
+        # Each row represents a sub-folder (carpet name) or a file
+        link_tag = row.find("a", class_="flip-entry")
+        if not link_tag:
+            continue
+        href = link_tag.get("href", "")
+        # Folder link → recurse
+        if "/folders/" in href:
+            sub_folder_id = href.split("/folders/")[-1].split("?")[0].split("#")[0]
+            sub_name = row.get_text(strip=True) or "Unknown"
+            # Fetch sub-folder contents
+            sub_embed = f"https://drive.google.com/embeddedfolderview?id={sub_folder_id}#list"
+            try:
+                sub_r = requests.get(sub_embed, timeout=20, headers={"User-Agent":"Mozilla/5.0"})
+                sub_soup = BeautifulSoup(sub_r.text, "html.parser")
+                sub_rows = sub_soup.find_all("div", class_="flip-entry")
+            except Exception as e:
+                errors.append(f"Sub-folder {sub_name}: {e}")
+                continue
+
+            for sub_row in sub_rows:
+                img_link = sub_row.find("a", class_="flip-entry")
+                if not img_link:
+                    continue
+                img_href = img_link.get("href", "")
+                if "/file/d/" not in img_href:
+                    continue
+                file_id = img_href.split("/file/d/")[-1].split("/")[0].split("?")[0]
+                # Filename from title attribute or text
+                title_span = sub_row.find("span", class_="flip-entry-title")
+                filename = (title_span.get_text(strip=True) if title_span else "image.jpg")
+                colour = os.path.splitext(filename)[0]
+                product_name = f"{sub_name} - {colour}"
+
+                # Check duplicate
+                dup = conn.execute("SELECT id FROM products WHERE name = ?", (product_name,)).fetchone()
+                if dup:
+                    skipped += 1
+                    continue
+
+                # Download image
+                img_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+                try:
+                    img_r = requests.get(img_url, timeout=30, headers={"User-Agent":"Mozilla/5.0"})
+                    img_r.raise_for_status()
+                except Exception as e:
+                    errors.append(f"Download {product_name}: {e}")
+                    continue
+
+                ext = os.path.splitext(filename)[1].lower() or ".jpg"
+                safe_name = f"{uuid.uuid4().hex}{ext}"
+                dest = f"uploads/products/{safe_name}"
+                with open(dest, "wb") as f:
+                    f.write(img_r.content)
+
+                conn.execute('''
+                    INSERT INTO products (name, category, price_per_sqm, cost_per_sqm, stock, image, texture_image, description, active)
+                    VALUES (?, ?, 0, 0, 0, ?, ?, ?, 1)
+                ''', (product_name, "Carpet", f"/uploads/products/{safe_name}", None, f"Imported from Google Drive"))
+                conn.commit()
+                created += 1
+        else:
+            # Top-level file
+            if "/file/d/" not in href:
+                continue
+            file_id = href.split("/file/d/")[-1].split("/")[0].split("?")[0]
+            title_span = row.find("span", class_="flip-entry-title")
+            filename = (title_span.get_text(strip=True) if title_span else "image.jpg")
+            colour = os.path.splitext(filename)[0]
+            product_name = f"{colour}"
+
+            dup = conn.execute("SELECT id FROM products WHERE name = ?", (product_name,)).fetchone()
+            if dup:
+                skipped += 1
+                continue
+
+            img_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+            try:
+                img_r = requests.get(img_url, timeout=30, headers={"User-Agent":"Mozilla/5.0"})
+                img_r.raise_for_status()
+            except Exception as e:
+                errors.append(f"Download {product_name}: {e}")
+                continue
+
+            ext = os.path.splitext(filename)[1].lower() or ".jpg"
+            safe_name = f"{uuid.uuid4().hex}{ext}"
+            dest = f"uploads/products/{safe_name}"
+            with open(dest, "wb") as f:
+                f.write(img_r.content)
+
+            conn.execute('''
+                INSERT INTO products (name, category, price_per_sqm, cost_per_sqm, stock, image, texture_image, description, active)
+                VALUES (?, ?, 0, 0, 0, ?, ?, ?, 1)
+            ''', (product_name, "Carpet", f"/uploads/products/{safe_name}", None, f"Imported from Google Drive"))
+            conn.commit()
+            created += 1
+
+    conn.close()
+    return {"created": created, "skipped": skipped, "errors": errors}
+
 @app.get("/api/quotes")
 def get_all_quotes():
     conn = get_db()
