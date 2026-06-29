@@ -22,6 +22,9 @@ export const API = {
 
   // Products
   getProducts: () => api('/api/products'),
+  createProduct: (data) => api('/api/products', { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json' } }),
+  updateProduct: (id, data) => api(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json' } }),
+  deleteProduct: (id) => api(`/api/products/${id}`, { method: 'DELETE' }),
 
   // Quotes
   getQuotes: () => api('/api/quotes'),

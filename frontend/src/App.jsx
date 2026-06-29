@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Camera, FileText, Calendar, Package, Star, Zap, BarChart3, ClipboardList, Truck, Wrench, Store } from 'lucide-react';
+import { LayoutDashboard, Users, Camera, FileText, Calendar, Package, Star, Zap, BarChart3, ClipboardList, Truck, Wrench, Store, Boxes } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/CustomerDetail';
@@ -15,6 +15,7 @@ import OrdersPage from './pages/OrdersPage';
 import ChecklistPage from './pages/ChecklistPage';
 import FittersPage from './pages/FittersPage';
 import ShowroomPage from './pages/ShowroomPage';
+import ProductsPage from './pages/ProductsPage';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -22,6 +23,7 @@ const navItems = [
   { icon: FileText, label: 'Quotes', path: '/quotes' },
   { icon: Calendar, label: 'Calendar', path: '/calendar' },
   { icon: Store, label: 'Showroom', path: '/showroom' },
+  { icon: Boxes, label: 'Products', path: '/products' },
   { icon: Package, label: 'Samples', path: '/samples' },
   { icon: Truck, label: 'Orders', path: '/orders' },
   { icon: Wrench, label: 'Fitters', path: '/fitters' },
@@ -92,6 +94,7 @@ function Layout() {
           <Route path="/quotes" element={<Quotes />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/showroom" element={<ShowroomPage />} />
+          <Route path="/products" element={<ProductsPage />} />
           <Route path="/samples" element={<SamplesPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/fitters" element={<FittersPage />} />

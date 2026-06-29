@@ -24,7 +24,17 @@ app.add_middleware(
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("uploads/room_visuals", exist_ok=True)
 os.makedirs("uploads/install_photos", exist_ok=True)
+os.makedirs("uploads/products", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...)):
+    ext = os.path.splitext(file.filename or "upload.jpg")[1].lower()
+    safe_name = f"{uuid.uuid4().hex}{ext}"
+    dest = f"uploads/products/{safe_name}"
+    with open(dest, "wb") as f:
+        f.write(await file.read())
+    return {"url": f"/uploads/products/{safe_name}"}
 
 def get_db():
     conn = sqlite3.connect("carpetcrm.db")
@@ -464,6 +474,75 @@ def get_products():
     rows = conn.execute("SELECT * FROM products WHERE active = 1 ORDER BY category, name").fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+@app.get("/api/products/{product_id}")
+def get_product(product_id: int):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(404, "Product not found")
+    return dict(row)
+
+@app.post("/api/products")
+def create_product(data: dict):
+    conn = get_db()
+    cursor = conn.execute('''
+        INSERT INTO products (name, category, price_per_sqm, cost_per_sqm, stock, image, texture_image, description, active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ''', (
+        data.get('name'), data.get('category'), data.get('price_per_sqm', 0),
+        data.get('cost_per_sqm', 0), data.get('stock', 0), data.get('image'),
+        data.get('texture_image'), data.get('description')
+    ))
+    product_id = cursor.lastrowid
+    conn.commit()
+    row = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.put("/api/products/{product_id}")
+def update_product(product_id: int, data: dict):
+    conn = get_db()
+    existing = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(404, "Product not found")
+    conn.execute('''
+        UPDATE products SET
+            name = COALESCE(?, name),
+            category = COALESCE(?, category),
+            price_per_sqm = COALESCE(?, price_per_sqm),
+            cost_per_sqm = COALESCE(?, cost_per_sqm),
+            stock = COALESCE(?, stock),
+            image = COALESCE(?, image),
+            texture_image = COALESCE(?, texture_image),
+            description = COALESCE(?, description),
+            active = COALESCE(?, active)
+        WHERE id = ?
+    ''', (
+        data.get('name'), data.get('category'), data.get('price_per_sqm'),
+        data.get('cost_per_sqm'), data.get('stock'), data.get('image'),
+        data.get('texture_image'), data.get('description'), data.get('active'),
+        product_id
+    ))
+    conn.commit()
+    row = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.delete("/api/products/{product_id}")
+def delete_product(product_id: int):
+    conn = get_db()
+    existing = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(404, "Product not found")
+    # Soft delete
+    conn.execute("UPDATE products SET active = 0 WHERE id = ?", (product_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": "Product deactivated"}
 
 @app.get("/api/products/{product_id}/recommendations")
 def get_product_recommendations(product_id: int):
