@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Package, CheckCircle, Clock, Truck, Wrench, FileText, CreditCard, AlertCircle, Search, ChevronRight, User } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API, formatDate } from '../api';
 
 const STATUS_CONFIG = {
@@ -16,6 +16,7 @@ const STATUS_CONFIG = {
 
 export default function OrdersPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
@@ -28,6 +29,25 @@ export default function OrdersPage() {
   });
 
   useEffect(() => { loadData(); }, []);
+
+  // Auto-open convert form if ?convert=quote_id is in URL
+  useEffect(() => {
+    const convertId = searchParams.get('convert');
+    if (convertId) {
+      const q = quotes.find(q => q.id === parseInt(convertId));
+      if (q) {
+        setForm({
+          ...form,
+          quote_id: q.id,
+          room_name: q.room_name || '',
+          product_name: q.product_name || '',
+          total: q.total || '',
+          balance_due: q.total || ''
+        });
+        setShowCreate(true);
+      }
+    }
+  }, [searchParams, quotes]);
 
   async function loadData() {
     try {

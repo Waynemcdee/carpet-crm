@@ -211,8 +211,13 @@ export default function Quotes() {
                         </button>
                       )}
                       {q.status === 'accepted' && (
-                        <button onClick={e => { e.stopPropagation(); updateStatus(q.id, 'paid'); }} className="btn-primary px-4 py-2 text-xs">
-                          Mark Paid
+                        <button onClick={e => { e.stopPropagation(); navigate(`/orders?convert=${q.id}`); }} className="btn-primary px-4 py-2 text-xs">
+                          Convert to Order
+                        </button>
+                      )}
+                      {q.status === 'paid' && (
+                        <button onClick={e => { e.stopPropagation(); updateStatus(q.id, 'converted'); }} className="btn-primary px-4 py-2 text-xs">
+                          Convert to Order
                         </button>
                       )}
                     </div>

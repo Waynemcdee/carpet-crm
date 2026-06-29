@@ -336,10 +336,17 @@ def get_dashboard():
     
     # Conversion rate
     total_leads = conn.execute("SELECT COUNT(*) as c FROM customers").fetchone()["c"]
-    converted = conn.execute("SELECT COUNT(*) as c FROM customers c JOIN orders o ON c.id = o.customer_id").fetchone()["c"]
+    converted = conn.execute("SELECT COUNT(DISTINCT customer_id) as c FROM orders WHERE customer_id IS NOT NULL").fetchone()["c"]
     conversion_rate = round((converted / total_leads * 100), 1) if total_leads > 0 else 0
     
-    # Hot leads — customers with activity in last 30 days
+    # Pipeline value — use quotes when no orders exist yet
+    has_orders = conn.execute("SELECT COUNT(*) as c FROM orders").fetchone()["c"]
+    if has_orders == 0:
+        month_value = conn.execute("SELECT COALESCE(SUM(total), 0) as c FROM quotes WHERE status IN ('draft','accepted') AND date(created_at) >= date('now', 'start of month')").fetchone()["c"]
+        total_value = conn.execute("SELECT COALESCE(SUM(total), 0) as c FROM quotes WHERE status IN ('draft','accepted')").fetchone()["c"]
+        jobs_in_progress = conn.execute("SELECT COUNT(*) as c FROM appointments WHERE status IN ('scheduled','confirmed')").fetchone()["c"]
+    
+    # Hot leads — customers with activity in last 30 days, DISTINCT to avoid duplicates
     hot_leads = conn.execute('''
         SELECT c.*, MAX(a.created_at) as last_activity,
                (SELECT COUNT(*) FROM samples s WHERE s.customer_id = c.id AND s.converted = 0) as sample_count,
@@ -590,7 +597,7 @@ def share_quote(quote_id: int, method: str = Form("whatsapp")):
     
     conn.execute("UPDATE quotes SET shared_at = CURRENT_TIMESTAMP WHERE id = ?", (quote_id,))
     
-    share_url = f"http://localhost:5005/quote/{quote['quote_token']}"
+    share_url = f"https://carpetcrm.co.uk/quote/{quote['quote_token']}"
     message = f"Hi {quote['name']}, here's your flooring quote for {quote['room_name']}: £{quote['total']}. View it here: {share_url}"
     
     conn.execute("INSERT INTO messages (customer_id, type, channel, content, status) VALUES (?, 'quote_share', ?, ?, 'sent')",
